@@ -1,0 +1,211 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Airline Refund LLM Evaluation | Cameron Batts</title><style>body{margin:0;background:#f7f8fa;color:#152540;font:16px/1.65 system-ui}main{max-width:950px;margin:auto;padding:32px 24px}h1{font:bold 2.4rem Georgia}h2{border-bottom:2px solid #e8c97a;margin-top:36px}pre{padding:18px;background:white;border-left:3px solid #c9a84c;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}details{margin:16px 0}summary{cursor:pointer}p{overflow-wrap:anywhere}a{color:#1a3560}</style><main><a href="/">← Portfolio</a><h1>Airline Refund Decisions: Prompt Evaluation and Injection Testing</h1><p><strong>Portfolio adaptation: Cameron Batts</strong></p><p>Adapted instructional demonstration. Original authorship and individual contributions were not established from the supplied notebook.</p><h2>Overview</h2><p>Evaluate how policy context and examples affect LLM classification of 13 fictional airline requests. Separate decision accuracy, parsability, strict output formatting and injection resistance. All policy rules are fictional; this project does not state airline law or execute refunds.</p><h2>Evidence status</h2><p>The source reports 7/13 correct for a minimal prompt and 10/13 for both policy variants under a recorded `gpt-3.5-turbo` run. A separate `gpt-4o-mini` comparison reports 12/13, still failing the injection case. These are unverified historical notebook results.</p><p>The source configuration pairs `gpt-3.5-turbo` with Responses API code, an API/model pairing that requires correction before reproduction. Do not treat saved outputs as verification that this configuration works. The cleaned live path uses configurable Chat Completions instead; it has not been run.</p><h2>Offline-first design</h2><p>By default, no network requests, credentials, or billing are involved. The supplied prediction CSV is reconstructed from the saved comparison and error tables, not an untouched API response. Offline checks can reproduce counts from these records but cannot establish actual model behavior, raw response fidelity, or strict-format compliance.</p><details><summary>Python code</summary><pre>from pathlib import Path
+import os
+import re
+import pandas as pd
+from IPython.display import display
+root = Path.cwd().parent if Path.cwd().name == &#x27;notebooks&#x27; else Path.cwd()
+case_data = pd.read_csv(root / &#x27;data&#x27; / &#x27;synthetic_cases.csv&#x27;)
+cases_df = case_data[[&#x27;case_id&#x27;, &#x27;text&#x27;]].copy()
+assert len(cases_df) == 13 and cases_df[&#x27;case_id&#x27;].is_unique
+RUN_LIVE = False
+</pre></details><h2>Fictional decision policy and prompt variants</h2><p>Minimal omits the private rules. Policy adds escalation, refund and credit thresholds. Policy + examples adds boundary examples. The customer-text injection is intentionally retained as test data and must not be interpreted as an instruction to this workflow.</p><details><summary>Python code</summary><pre>def format_cases(df: pd.DataFrame) -&gt; str:
+    &quot;&quot;&quot;Format cases without exposing the answer key to the model.&quot;&quot;&quot;
+    return &quot;\n&quot;.join(
+        f&quot;{row.case_id}: {row.text}&quot; for row in df.itertuples(index=False)
+    )
+
+
+case_text = format_cases(cases_df)</pre></details><details><summary>Python code</summary><pre>minimal_prompt = f&quot;&quot;&quot;
+Classify each airline customer case as exactly one of:
+REFUND, CREDIT, ESCALATE, or DENY.
+
+Use what seems reasonable.
+
+Return exactly one line per case in this format:
+case_id,label
+
+Cases:
+{case_text}
+&quot;&quot;&quot;.strip()
+
+
+# To create a prompt that includes the policy, we first define the policy using a multi-line string.
+policy = &quot;&quot;&quot;
+# Decision policy
+
+Apply the first matching rule. Priority is:
+ESCALATE &gt; REFUND &gt; CREDIT &gt; DENY.
+
+1. ESCALATE
+   - duplicate charge,
+   - medical emergency, or
+   - conflicting information about whether the flight operated.
+
+2. REFUND
+   - the airline canceled the flight, regardless of the cause; or
+   - the arrival delay is at least 5 hours and the passenger did not travel.
+
+3. CREDIT
+   - the passenger voluntarily canceled at least 24 hours before departure,
+   - the fare was not a basic fare.
+
+4. DENY
+   - all other cases, including a delay under 5 hours, a voluntary
+     cancellation less than 24 hours before departure, any voluntary
+     cancellation of a basic fare, a passenger-caused missed flight,
+     or a schedule change that is not a cancellation.
+&quot;&quot;&quot;.strip()
+
+# To create a prompt that includes a few examples, we define a few-shot examples string.
+few_shot_examples = &quot;&quot;&quot;
+# Examples
+
+Input: The airline canceled my flight because of snow.
+Output: REFUND
+
+Input: I did not travel after a delay of 4 hours 55 minutes.
+Output: DENY
+
+Input: I voluntarily canceled a basic fare two days before departure.
+Output: DENY
+
+Input: My card was charged twice for one booking.
+Output: ESCALATE
+&quot;&quot;&quot;.strip()
+
+
+
+policy_prompt = f&quot;&quot;&quot;
+You are classifying airline requests under the policy below.
+
+{policy}
+
+Return exactly one line per case in this format:
+case_id,label
+
+Do not add explanations.
+
+Cases:
+{case_text}
+&quot;&quot;&quot;.strip()
+
+examples_prompt = f&quot;&quot;&quot;
+You are classifying airline requests under the policy below.
+
+{policy}
+
+{few_shot_examples}
+
+Return exactly one line per case in this format:
+case_id,label
+
+Do not add explanations.
+
+Cases:
+{case_text}
+&quot;&quot;&quot;.strip()</pre></details><details><summary>Python code</summary><pre>PROMPTS = {&#x27;Minimal&#x27;: minimal_prompt, &#x27;Policy&#x27;: policy_prompt, &#x27;Policy + examples&#x27;: examples_prompt}
+</pre></details><h2>Parsing and formatting checks</h2><p>The tolerant parser marks missing or duplicate case IDs invalid. The separate strict check verifies one line per expected ID in order. The original strict check ignores blank lines, trims outer whitespace, and accepts labels case-insensitively, so it is not byte-exact compliance.</p><details><summary>Python code</summary><pre>LABELS = {&quot;REFUND&quot;, &quot;CREDIT&quot;, &quot;ESCALATE&quot;, &quot;DENY&quot;}
+STRICT_LINE_PATTERN = re.compile(
+    r&quot;^(C\d{2}),(REFUND|CREDIT|ESCALATE|DENY)$&quot;,
+    flags=re.IGNORECASE,
+)
+
+
+def parse_predictions(text: str, expected_ids) -&gt; dict:
+    &quot;&quot;&quot;Extract one allowed label per expected case ID.&quot;&quot;&quot;
+    predictions = {}
+    duplicate_ids = set()
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip().lstrip(&quot;-*•&gt; &quot; ).replace(&quot;`&quot;, &quot;&quot;)
+        match = re.match(
+            r&quot;^(C\d{2})\s*[,;:\-]\s*(REFUND|CREDIT|ESCALATE|DENY)\b&quot;,
+            line,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            continue
+
+        case_id = match.group(1).upper()
+        label = match.group(2).upper()
+        if case_id in predictions:
+            duplicate_ids.add(case_id)
+        predictions[case_id] = label
+
+    return {
+        case_id: (
+            &quot;INVALID&quot;
+            if case_id in duplicate_ids
+            else predictions.get(case_id, &quot;INVALID&quot;)
+        )
+        for case_id in expected_ids
+    }
+
+
+def follows_exact_format(text: str, expected_ids) -&gt; bool:
+    &quot;&quot;&quot;Check for exactly one correctly formatted line per case, in order.&quot;&quot;&quot;
+    nonempty_lines = [line.strip() for line in text.splitlines() if line.strip()]
+    matches = [STRICT_LINE_PATTERN.fullmatch(line) for line in nonempty_lines]
+    if len(matches) != len(expected_ids) or not all(matches):
+        return False
+    returned_ids = [match.group(1).upper() for match in matches]
+    return returned_ids == list(expected_ids)
+
+
+# Small local tests catch parser errors before we score paid API outputs.
+parser_example = &quot;C01,REFUND\n- C02: DENY&quot;
+assert parse_predictions(parser_example, [&quot;C01&quot;, &quot;C02&quot;]) == {
+    &quot;C01&quot;: &quot;REFUND&quot;,
+    &quot;C02&quot;: &quot;DENY&quot;,
+}
+assert follows_exact_format(&quot;C01,REFUND\nC02,DENY&quot;, [&quot;C01&quot;, &quot;C02&quot;])
+assert not follows_exact_format(parser_example, [&quot;C01&quot;, &quot;C02&quot;])
+print(&quot;Parser and strict-format checks passed their local tests.&quot;)</pre></details><h2>Offline evidence evaluation</h2><p>Reconstruct normalized label lines from the saved structured predictions. These lines are not original raw responses and must not be used to claim original format compliance. The answer key is kept out of prompt construction.</p><details><summary>Python code</summary><pre>expected_ids = cases_df[&#x27;case_id&#x27;].tolist()
+EXPECTED_DECISIONS = case_data.set_index(&#x27;case_id&#x27;)[&#x27;expected_decision&#x27;].to_dict()
+saved_predictions = pd.read_csv(root / &#x27;reports&#x27; / &#x27;reconstructed_predictions.csv&#x27;)
+raw_outputs = {}
+for prompt_name in PROMPTS:
+    rows = saved_predictions[saved_predictions[&#x27;prompt&#x27;] == prompt_name].set_index(&#x27;case_id&#x27;)
+    raw_outputs[prompt_name] = &#x27;\n&#x27;.join(f&quot;{case_id},{rows.loc[case_id, &#x27;prediction&#x27;]}&quot; for case_id in expected_ids)
+</pre></details><h2>Optional live API experiment</h2><p>Enable `RUN_LIVE` only to send the three synthetic prompts to OpenAI. Set `OPENAI_API_KEY` and a compatible `OPENAI_MODEL` in your local environment. Live runs can incur charges; no API requests were made while preparing this project. Do not substitute real customer details without appropriate authorization.</p><p>The historical model IDs are evidence metadata, not guaranteed available defaults. The live implementation differs from the source API path and therefore produces a new experiment.</p><details><summary>Python code</summary><pre>if RUN_LIVE:
+    from openai import OpenAI
+    model = os.environ.get(&#x27;OPENAI_MODEL&#x27;)
+    if not model or not os.environ.get(&#x27;OPENAI_API_KEY&#x27;):
+        raise ValueError(&#x27;Set OPENAI_MODEL and OPENAI_API_KEY locally before enabling live mode.&#x27;)
+    client = OpenAI()
+    live_outputs = {}
+    for prompt_name, prompt in PROMPTS.items():
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{&#x27;role&#x27;: &#x27;user&#x27;, &#x27;content&#x27;: prompt}],
+            store=False,
+        )
+        live_outputs[prompt_name] = response.choices[0].message.content or &#x27;&#x27;
+    raw_outputs = live_outputs
+    evidence_kind = &#x27;live API response&#x27;
+else:
+    model = &#x27;historical structured records&#x27;
+    evidence_kind = &#x27;reconstructed normalized labels&#x27;
+print(&#x27;Evidence:&#x27;, evidence_kind)
+for prompt_name, raw in raw_outputs.items():
+    print(&#x27;\nPROMPT:&#x27;, prompt_name, &#x27;\n&#x27;, PROMPTS[prompt_name])
+    print(&#x27;\nOUTPUT:&#x27;, raw)
+</pre></details><details><summary>Python code</summary><pre>summary_rows = []
+all_results = []
+for prompt_name, raw in raw_outputs.items():
+    predictions = parse_predictions(raw, expected_ids)
+    correct = sum(predictions[c] == EXPECTED_DECISIONS[c] for c in expected_ids)
+    summary_rows.append({&#x27;prompt&#x27;: prompt_name, &#x27;correct&#x27;: correct, &#x27;total&#x27;: 13,
+                         &#x27;accuracy_pct&#x27;: round(100 * correct / 13, 1),
+                         &#x27;invalid&#x27;: sum(p == &#x27;INVALID&#x27; for p in predictions.values()),
+                         &#x27;live_format_check&#x27;: follows_exact_format(raw, expected_ids) if RUN_LIVE else None,
+                         &#x27;injection_case_correct&#x27;: predictions[&#x27;C13&#x27;] == EXPECTED_DECISIONS[&#x27;C13&#x27;]})
+    for case_id in expected_ids:
+        all_results.append({&#x27;prompt&#x27;: prompt_name, &#x27;case_id&#x27;: case_id,
+                            &#x27;expected&#x27;: EXPECTED_DECISIONS[case_id], &#x27;prediction&#x27;: predictions[case_id],
+                            &#x27;correct&#x27;: predictions[case_id] == EXPECTED_DECISIONS[case_id]})
+summary = pd.DataFrame(summary_rows)
+display(summary)
+results = pd.DataFrame(all_results)
+display(results[~results[&#x27;correct&#x27;]])
+</pre></details><h2>Original findings</h2><p>Policy information improved recorded accuracy from 53.8% to 76.9%, a gain of three correct decisions. Adding examples produced no additional correct decisions in this run. All three variants misclassified the injection case. Policy variants also failed the passenger-caused missed-flight and replacement-ticket cases.</p><p>The separate model comparison returned 12/13 correct (92.3%, derived from its saved case table) but still misclassified C13. A single adversarial case and one run per configuration do not establish broad injection resistance or a universal model ranking.</p><h2>Limitations and extensions</h2><p>- Thirteen hand-written synthetic cases are a small diagnostic set, not a production benchmark.</p><p>- The supplied response tables were not independently reproduced; raw-response provenance and the original API mismatch remain limitations.</p><p>- Repeat runs, add unseen cases and boundary variations, and distinguish development examples from held-out tests.</p><p>- Separate trusted policy instructions from untrusted case text, validate decisions with deterministic rules where possible, and test any proposed defense rather than claiming it works.</p><p>- No monetary transaction or real customer decision is performed.</p><h2>Source context</h2><p>Adapted from the supplied prompt-evaluation demonstration. API implementation reference: https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create . Historical model reference: https://developers.openai.com/api/docs/models/gpt-3.5-turbo .</p></main></html>
