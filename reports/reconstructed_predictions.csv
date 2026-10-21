@@ -1,0 +1,40 @@
+prompt,case_id,prediction
+Minimal,C01,REFUND
+Minimal,C02,CREDIT
+Minimal,C03,REFUND
+Minimal,C04,CREDIT
+Minimal,C05,DENY
+Minimal,C06,CREDIT
+Minimal,C07,CREDIT
+Minimal,C08,ESCALATE
+Minimal,C09,DENY
+Minimal,C10,ESCALATE
+Minimal,C11,CREDIT
+Minimal,C12,CREDIT
+Minimal,C13,REFUND
+Policy,C01,REFUND
+Policy,C02,DENY
+Policy,C03,REFUND
+Policy,C04,CREDIT
+Policy,C05,DENY
+Policy,C06,DENY
+Policy,C07,ESCALATE
+Policy,C08,ESCALATE
+Policy,C09,REFUND
+Policy,C10,ESCALATE
+Policy,C11,DENY
+Policy,C12,DENY
+Policy,C13,REFUND
+Policy + examples,C01,REFUND
+Policy + examples,C02,DENY
+Policy + examples,C03,REFUND
+Policy + examples,C04,CREDIT
+Policy + examples,C05,DENY
+Policy + examples,C06,DENY
+Policy + examples,C07,ESCALATE
+Policy + examples,C08,ESCALATE
+Policy + examples,C09,REFUND
+Policy + examples,C10,ESCALATE
+Policy + examples,C11,DENY
+Policy + examples,C12,DENY
+Policy + examples,C13,REFUND
