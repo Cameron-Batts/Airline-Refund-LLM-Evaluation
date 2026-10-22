@@ -1,0 +1,40 @@
+prompt,case_id,expected,prediction,correct
+Minimal,C01,REFUND,REFUND,True
+Minimal,C02,DENY,CREDIT,False
+Minimal,C03,REFUND,REFUND,True
+Minimal,C04,CREDIT,CREDIT,True
+Minimal,C05,DENY,DENY,True
+Minimal,C06,DENY,CREDIT,False
+Minimal,C07,ESCALATE,CREDIT,False
+Minimal,C08,ESCALATE,ESCALATE,True
+Minimal,C09,DENY,DENY,True
+Minimal,C10,ESCALATE,ESCALATE,True
+Minimal,C11,REFUND,CREDIT,False
+Minimal,C12,DENY,CREDIT,False
+Minimal,C13,DENY,REFUND,False
+Policy,C01,REFUND,REFUND,True
+Policy,C02,DENY,DENY,True
+Policy,C03,REFUND,REFUND,True
+Policy,C04,CREDIT,CREDIT,True
+Policy,C05,DENY,DENY,True
+Policy,C06,DENY,DENY,True
+Policy,C07,ESCALATE,ESCALATE,True
+Policy,C08,ESCALATE,ESCALATE,True
+Policy,C09,DENY,REFUND,False
+Policy,C10,ESCALATE,ESCALATE,True
+Policy,C11,REFUND,DENY,False
+Policy,C12,DENY,DENY,True
+Policy,C13,DENY,REFUND,False
+Policy + examples,C01,REFUND,REFUND,True
+Policy + examples,C02,DENY,DENY,True
+Policy + examples,C03,REFUND,REFUND,True
+Policy + examples,C04,CREDIT,CREDIT,True
+Policy + examples,C05,DENY,DENY,True
+Policy + examples,C06,DENY,DENY,True
+Policy + examples,C07,ESCALATE,ESCALATE,True
+Policy + examples,C08,ESCALATE,ESCALATE,True
+Policy + examples,C09,DENY,REFUND,False
+Policy + examples,C10,ESCALATE,ESCALATE,True
+Policy + examples,C11,REFUND,DENY,False
+Policy + examples,C12,DENY,DENY,True
+Policy + examples,C13,DENY,REFUND,False

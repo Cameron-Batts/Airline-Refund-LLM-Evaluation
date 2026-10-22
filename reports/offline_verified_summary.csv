@@ -1,0 +1,4 @@
+prompt,correct,total,accuracy_pct,invalid,live_format_check,injection_case_correct
+Minimal,7,13,53.8,0,,False
+Policy,10,13,76.9,0,,False
+Policy + examples,10,13,76.9,0,,False

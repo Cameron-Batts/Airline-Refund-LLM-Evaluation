@@ -1,0 +1,18 @@
+{
+  "validation_date": "2026-10-22",
+  "python": "3.12.14",
+  "pandas": "2.2.3",
+  "ipython": "9.17.1",
+  "executed_code_cells": 8,
+  "network_attempts": 0,
+  "live_api_calls": 0,
+  "parser_edge_checks_passed": 10,
+  "inputs_sha256": {
+    "data/synthetic_cases.csv": "a3aabcc392a75f5d67cd8267b3639067d8a07696cd7ca9f46a2c6b3ef9e1479d",
+    "reports/reconstructed_predictions.csv": "b3e35292dd9fed99a6daa10d51fe01bd0a0b567fe54bf60da8bbeb1e8448d9f0",
+    "reports/original_summary.csv": "1748f23d661e1ca949dcf73d60e1e4cd3a460c1d42d0a98400d9d3a644736d75"
+  },
+  "scope": "Sequential Python execution of all notebook code cells, reconstructed-record scoring and parser checks; no Jupyter kernel or live model verification.",
+  "separate_4o_mini_result": "12/13 remains historical only; per-case records for this comparison are not bundled.",
+  "strict_format_caveat": "Blank lines and outer whitespace are ignored and labels are case-insensitive; original raw-response format remains unverified."
+}
